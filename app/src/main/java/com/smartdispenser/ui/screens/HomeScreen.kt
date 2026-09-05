@@ -15,16 +15,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -34,15 +34,15 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,16 +54,13 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.smartdispenser.model.Category
-import com.smartdispenser.model.ConnectionStatus
+import com.smartdispenser.model.DispenseLimits
 import com.smartdispenser.ui.components.CategoryDialog
 import com.smartdispenser.ui.components.ConfirmDialog
 import com.smartdispenser.ui.components.ConnectionStatusIndicator
 import com.smartdispenser.ui.theme.Error
 import com.smartdispenser.viewmodel.HomeViewModel
-import com.smartdispenser.data.SettingsRepository
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.ui.platform.LocalContext
+import com.smartdispenser.viewmodel.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,11 +75,6 @@ fun HomeScreen(
     var categoryToDelete by remember { mutableStateOf<Category?>(null) }
     var showSettingsDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
-    val context = LocalContext.current
-
-    LaunchedEffect(Unit) {
-        viewModel.checkConnection()
-    }
 
     Scaffold(
         topBar = {
@@ -206,7 +198,7 @@ fun HomeScreen(
 
     if (showSettingsDialog) {
         SettingsDialog(
-            onSave = { url ->
+            onSaved = {
                 viewModel.checkConnection()
                 showSettingsDialog = false
             },
@@ -289,12 +281,16 @@ fun CategoryCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsDialog(
-    onSave: (String) -> Unit,
+    onSaved: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val settingsViewModel: SettingsViewModel = hiltViewModel()
     val baseUrl by settingsViewModel.esp32BaseUrl.collectAsStateWithLifecycle()
-    var url by remember { mutableStateOf(baseUrl) }
+    val secondsFor250Ml by settingsViewModel.secondsFor250Ml.collectAsStateWithLifecycle()
+    var url by remember(baseUrl) { mutableStateOf(baseUrl) }
+    var secondsText by remember(secondsFor250Ml) { mutableStateOf(secondsFor250Ml.toString()) }
+    val secondsValue = secondsText.toIntOrNull() ?: 0
+    val secondsValid = secondsValue in DispenseLimits.MIN_SECONDS..DispenseLimits.MAX_SECONDS
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -313,15 +309,31 @@ fun SettingsDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Calibration (seconds for 250 ml)",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                OutlinedTextField(
+                    value = secondsText,
+                    onValueChange = { secondsText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("${DispenseLimits.DEFAULT_SECONDS_FOR_250ML}") },
+                    supportingText = {
+                        Text("Used for 250 ml / 500 ml / 1 L. Max ${DispenseLimits.MAX_SECONDS}s per pour.")
+                    },
+                    isError = !secondsValid,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    settingsViewModel.updateBaseUrl(url)
-                    onSave(url)
+                    settingsViewModel.saveSettings(url, secondsValue, onSaved)
                 },
-                enabled = url.isNotBlank()
+                enabled = url.isNotBlank() && secondsValid
             ) {
                 Text("Save")
             }

@@ -17,6 +17,9 @@ class TimerPresetRepository @Inject constructor(
     fun observePresetById(presetId: Long): Flow<TimerPreset?> =
         timerPresetDao.observePresetById(presetId)
 
+    suspend fun getPresetById(presetId: Long): TimerPreset? =
+        timerPresetDao.getPresetById(presetId)
+
     suspend fun insertPreset(preset: TimerPreset): Long {
         return timerPresetDao.insertPreset(preset)
     }

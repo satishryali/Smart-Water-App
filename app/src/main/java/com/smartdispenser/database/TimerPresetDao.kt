@@ -18,6 +18,9 @@ interface TimerPresetDao {
     @Query("SELECT * FROM timer_presets WHERE id = :presetId")
     fun observePresetById(presetId: Long): Flow<TimerPreset?>
 
+    @Query("SELECT * FROM timer_presets WHERE id = :presetId")
+    suspend fun getPresetById(presetId: Long): TimerPreset?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPreset(preset: TimerPreset): Long
 

@@ -7,12 +7,14 @@ import com.smartdispenser.model.ConnectionStatus
 import com.smartdispenser.repository.CategoryRepository
 import com.smartdispenser.repository.DispenserRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -22,7 +24,7 @@ class HomeViewModel @Inject constructor(
     private val dispenserRepository: DispenserRepository
 ) : ViewModel() {
 
-    private val _connectionStatus = MutableStateFlow<ConnectionStatus>(ConnectionStatus.CHECKING)
+    private val _connectionStatus = MutableStateFlow(ConnectionStatus.CHECKING)
     val connectionStatus: StateFlow<ConnectionStatus> = _connectionStatus.asStateFlow()
 
     val categories: StateFlow<List<Category>> = categoryRepository.observeAllCategories()
@@ -46,15 +48,32 @@ class HomeViewModel @Inject constructor(
         initialValue = HomeUiState()
     )
 
+    init {
+        viewModelScope.launch {
+            var first = true
+            while (isActive) {
+                refreshConnection(showChecking = first)
+                first = false
+                delay(5_000)
+            }
+        }
+    }
+
     fun checkConnection() {
         viewModelScope.launch {
+            refreshConnection(showChecking = true)
+        }
+    }
+
+    private suspend fun refreshConnection(showChecking: Boolean) {
+        if (showChecking) {
             _connectionStatus.value = ConnectionStatus.CHECKING
-            val connected = dispenserRepository.checkConnection()
-            _connectionStatus.value = if (connected) {
-                ConnectionStatus.CONNECTED
-            } else {
-                ConnectionStatus.OFFLINE
-            }
+        }
+        val connected = dispenserRepository.checkConnection()
+        _connectionStatus.value = if (connected) {
+            ConnectionStatus.CONNECTED
+        } else {
+            ConnectionStatus.OFFLINE
         }
     }
 

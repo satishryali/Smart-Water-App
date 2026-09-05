@@ -6,5 +6,9 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class StatusResponse(
     @SerialName("connected")
-    val connected: Boolean
+    val connected: Boolean = true,
+    @SerialName("state")
+    val state: String = "IDLE",
+    @SerialName("remainingMs")
+    val remainingMs: Int = 0
 )
